@@ -1,0 +1,123 @@
+{
+  "entities": {
+    "JournalEntry": {
+      "title": "JournalEntry",
+      "description": "A completed or in-progress journal entry with structured AI reflections, mood tracking, and actionable insights.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "UID of the owner user"
+        },
+        "title": {
+          "type": "string",
+          "description": "Title of the journal session",
+          "maxLength": 200
+        },
+        "content": {
+          "type": "string",
+          "description": "The user's personal journal reflection writing",
+          "maxLength": 50000
+        },
+        "summary": {
+          "type": "string",
+          "description": "Structured AI summary of the reflection session",
+          "maxLength": 10000
+        },
+        "mood": {
+          "type": "string",
+          "description": "Detected emotional tone of the journal entry",
+          "maxLength": 50
+        },
+        "topics": {
+          "type": "array",
+          "description": "Identified topics in the journal session"
+        },
+        "recurringConcerns": {
+          "type": "array",
+          "description": "Key concerns or anxieties identified during reflection"
+        },
+        "goals": {
+          "type": "array",
+          "description": "Future goals or milestones discussed"
+        },
+        "actionItems": {
+          "type": "array",
+          "description": "Concrete action items derived from the reflection"
+        },
+        "keyReflection": {
+          "type": "string",
+          "description": "Central philosophical takeaway or inquiry question",
+          "maxLength": 2000
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp when the journal entry was created"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp when the journal entry was last modified"
+        }
+      },
+      "required": [
+        "userId",
+        "title",
+        "content",
+        "summary",
+        "mood",
+        "keyReflection",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "Conversation": {
+      "title": "Conversation",
+      "description": "Multi-turn Gemini chat session history associated with the journal entry.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "UID of the owner user"
+        },
+        "title": {
+          "type": "string",
+          "description": "Session conversation title",
+          "maxLength": 200
+        },
+        "messages": {
+          "type": "array",
+          "description": "List of user and assistant conversation turns"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp of conversation initialization"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp of last conversation activity"
+        }
+      },
+      "required": [
+        "userId",
+        "title",
+        "messages",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}/journalEntries/{entryId}": {
+      "schema": "JournalEntry",
+      "description": "User's private journal entries and generated AI reflections"
+    },
+    "/users/{userId}/conversations/{conversationId}": {
+      "schema": "Conversation",
+      "description": "User's private multi-turn conversation logs"
+    }
+  }
+}

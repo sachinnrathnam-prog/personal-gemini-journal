@@ -1,0 +1,85 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default deny all access unless explicitly permitted
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Security helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Validation for JournalEntry document
+    function isValidJournalEntry(data, userId) {
+      return data.userId is string && data.userId == userId && data.userId == request.auth.uid &&
+             data.title is string && data.title.size() > 0 && data.title.size() <= 200 &&
+             data.content is string && data.content.size() <= 50000 &&
+             data.summary is string && data.summary.size() <= 10000 &&
+             data.mood is string && data.mood.size() > 0 && data.mood.size() <= 50 &&
+             data.keyReflection is string && data.keyReflection.size() <= 2000 &&
+             data.createdAt is string && data.createdAt.size() <= 50 &&
+             data.updatedAt is string && data.updatedAt.size() <= 50 &&
+             (!('topics' in data) || (data.topics is list && data.topics.size() <= 30)) &&
+             (!('recurringConcerns' in data) || (data.recurringConcerns is list && data.recurringConcerns.size() <= 30)) &&
+             (!('goals' in data) || (data.goals is list && data.goals.size() <= 30)) &&
+             (!('actionItems' in data) || (data.actionItems is list && data.actionItems.size() <= 30));
+    }
+
+    // Validation for Conversation document
+    function isValidConversation(data, userId) {
+      return data.userId is string && data.userId == userId && data.userId == request.auth.uid &&
+             data.title is string && data.title.size() > 0 && data.title.size() <= 200 &&
+             data.messages is list && data.messages.size() <= 100 &&
+             data.createdAt is string && data.createdAt.size() <= 50 &&
+             data.updatedAt is string && data.updatedAt.size() <= 50;
+    }
+
+    // User data tree: all documents isolated under /users/{userId}
+    match /users/{userId} {
+      // User root doc
+      allow get: if isOwner(userId);
+      allow list: if false;
+
+      // User's journal entries
+      match /journalEntries/{entryId} {
+        allow get: if isOwner(userId) && isValidId(entryId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(entryId) && isValidJournalEntry(incoming(), userId);
+        allow update: if isOwner(userId) && isValidId(entryId) && isValidJournalEntry(incoming(), userId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt;
+        allow delete: if isOwner(userId) && isValidId(entryId);
+      }
+
+      // User's multi-turn conversation logs
+      match /conversations/{conversationId} {
+        allow get: if isOwner(userId) && isValidId(conversationId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(conversationId) && isValidConversation(incoming(), userId);
+        allow update: if isOwner(userId) && isValidId(conversationId) && isValidConversation(incoming(), userId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt;
+        allow delete: if isOwner(userId) && isValidId(conversationId);
+      }
+    }
+  }
+}

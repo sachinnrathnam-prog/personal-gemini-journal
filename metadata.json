@@ -1,0 +1,6 @@
+{
+  "name": "Personal Gemini Journal",
+  "description": "A private, secure journaling application with AI-powered reflections, insights, and per-user data isolation.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
