@@ -1,7 +1,6 @@
 import express, { Request, Response, NextFunction } from 'express';
 import path from 'path';
 import https from 'node:https';
-import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
 import { requireAuth, AuthenticatedRequest } from './server/auth';
 import {
@@ -10,11 +9,10 @@ import {
   synthesizeInsightsServer,
 } from './server/geminiService';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
 async function startServer() {
   const app = express();
+
+  // Cloud Run provides PORT. Fall back to 8080 for local/other environments.
   const PORT = Number(process.env.PORT) || 8080;
 
   // Transparent reverse proxy for Firebase Authentication handler & helper assets
@@ -41,6 +39,7 @@ async function startServer() {
 
     proxyReq.on('error', (err) => {
       console.error('Firebase Auth reverse proxy error:', err);
+
       if (!res.headersSent) {
         res.status(502).send('Firebase Auth proxy unavailable');
       }
@@ -49,45 +48,64 @@ async function startServer() {
     req.pipe(proxyReq);
   });
 
-  // Security hardening: hide server fingerprint and set basic defense headers
+  // Security hardening
   app.disable('x-powered-by');
+
   app.use((req, res, next) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('X-Frame-Options', 'SAMEORIGIN');
-    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    res.setHeader(
+      'Referrer-Policy',
+      'strict-origin-when-cross-origin'
+    );
     next();
   });
 
-  // Strict JSON payload body limit to prevent denial of service / wallet attacks
+  // Limit request body size
   app.use(express.json({ limit: '256kb' }));
 
   // --- API Routes ---
 
   // Health check
   app.get('/api/health', (_req: Request, res: Response) => {
-    res.json({ status: 'ok', service: 'Personal Gemini Journal' });
+    res.json({
+      status: 'ok',
+      service: 'Personal Gemini Journal',
+    });
   });
 
   // Multi-turn conversational journaling companion endpoint
   app.post(
     '/api/chat',
     requireAuth,
-    async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    async (
+      req: AuthenticatedRequest,
+      res: Response,
+      next: NextFunction
+    ) => {
       try {
         const { messages, journalContext } = req.body;
 
         if (!messages || !Array.isArray(messages)) {
-          res.status(400).json({ error: 'Invalid input: messages array is required.' });
+          res.status(400).json({
+            error: 'Invalid input: messages array is required.',
+          });
           return;
         }
 
-        // Validate payload limits
         if (messages.length > 50) {
-          res.status(400).json({ error: 'Conversation history exceeds maximum allowed limit.' });
+          res.status(400).json({
+            error:
+              'Conversation history exceeds maximum allowed limit.',
+          });
           return;
         }
 
-        const reply = await chatWithGeminiServer(messages, journalContext);
+        const reply = await chatWithGeminiServer(
+          messages,
+          journalContext
+        );
+
         res.json({ reply });
       } catch (err: any) {
         next(err);
@@ -99,12 +117,18 @@ async function startServer() {
   app.post(
     '/api/generate-reflection',
     requireAuth,
-    async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    async (
+      req: AuthenticatedRequest,
+      res: Response,
+      next: NextFunction
+    ) => {
       try {
         const { title, content, messages } = req.body;
 
         if (typeof title !== 'string' && title !== undefined) {
-          res.status(400).json({ error: 'Invalid title format.' });
+          res.status(400).json({
+            error: 'Invalid title format.',
+          });
           return;
         }
 
@@ -125,16 +149,23 @@ async function startServer() {
   app.post(
     '/api/synthesize-insights',
     requireAuth,
-    async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    async (
+      req: AuthenticatedRequest,
+      res: Response,
+      next: NextFunction
+    ) => {
       try {
         const { entries } = req.body;
 
         if (!entries || !Array.isArray(entries)) {
-          res.status(400).json({ error: 'Invalid input: entries array is required.' });
+          res.status(400).json({
+            error: 'Invalid input: entries array is required.',
+          });
           return;
         }
 
         const insights = await synthesizeInsightsServer(entries);
+
         res.json(insights);
       } catch (err: any) {
         next(err);
@@ -142,32 +173,47 @@ async function startServer() {
     }
   );
 
-  // Global sanitized error handler: never leak internal stack traces, tokens, or system variables
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-    // Avoid logging sensitive client journal payloads or secrets
-    console.error('Server operation error occurred');
-    res.status(500).json({
-      error: 'An internal server error occurred. Your journal data remains safe and isolated.',
-    });
-  });
+  // Sanitized global error handler
+  app.use(
+    (
+      _err: any,
+      _req: Request,
+      res: Response,
+      _next: NextFunction
+    ) => {
+      console.error('Server operation error occurred');
+
+      res.status(500).json({
+        error:
+          'An internal server error occurred. Your journal data remains safe and isolated.',
+      });
+    }
+  );
 
   // --- Vite Dev Middleware / Production Static Serving ---
+
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
     });
+
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), 'dist');
+
     app.use(express.static(distPath));
+
     app.get('*', (_req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
 
+  // Cloud Run requires listening on 0.0.0.0 and the PORT env variable.
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Personal Gemini Journal server running on http://0.0.0.0:${PORT}`);
+    console.log(
+      `Personal Gemini Journal server running on 0.0.0.0:${PORT}`
+    );
   });
 }
 
