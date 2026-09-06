@@ -15,7 +15,7 @@ const __dirname = path.dirname(__filename);
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = Number(process.env.PORT) || 8080;
 
   // Transparent reverse proxy for Firebase Authentication handler & helper assets
   // Resolves auth/invalid-continue-uri by serving /__/auth/* on the runtime preview domain
